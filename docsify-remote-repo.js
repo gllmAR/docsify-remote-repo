@@ -1,7 +1,7 @@
 (function () {
-  function docsifyContentFetcher(hook, vm) {
+  function docsifyRemoteRepo(hook, vm) {
     // Plugin options
-    var options = vm.config.docsifyContentFetcher || {};
+    var options = vm.config.docsifyRemoteRepo || {};
 
     var allowedDomains = options.allowedDomains || '';
     var darkmode = options.darkmode || false;
@@ -322,5 +322,5 @@
   }
 
   // Register the plugin
-  window.$docsify.plugins = [].concat(docsifyContentFetcher, window.$docsify.plugins);
+  window.$docsify.plugins = [].concat(docsifyRemoteRepo, window.$docsify.plugins);
 })();

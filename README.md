@@ -1,4 +1,4 @@
-# docsify-content-fetcher.js
+# docsify-remote-repo.js
 
 A hosted plugin version of **Docsify-This** principle that allows you to display remote Markdown files with full Docsify features, including custom themes, plugins, and URL parameter customization.
 
