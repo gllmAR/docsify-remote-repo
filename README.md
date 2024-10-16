@@ -24,7 +24,7 @@ A hosted plugin version of **Docsify-This** principle that allows you to display
 
 ## Introduction
 
-This project provides a customizable **Docsify** setup that can display remote Markdown files from a specified repository. By using the `docsify-content-fetcher.js` plugin, you can ingest remote repositories, adjust links and images, and customize the viewer's experience through URL parameters.
+This project provides a customizable **Docsify** setup that can display remote Markdown files from a specified repository. By using the `docsify-remote-repo` plugin, you can ingest remote repositories, adjust links and images, and customize the viewer's experience through URL parameters.
 
 ## Features
 
@@ -53,11 +53,11 @@ This project provides a customizable **Docsify** setup that can display remote M
 2. **Download the Necessary Files**:
 
    - `index.html`: The main HTML file.
-   - `docsify-content-fetcher.js`: The Docsify plugin for fetching remote content.
+   - `docsify-remote-repo`: The Docsify plugin for fetching remote content.
 
 3. **Place the Files**:
 
-   - Ensure both `index.html` and `docsify-content-fetcher.js` are in the same directory.
+   - Ensure both `index.html` and `docsify-remote-repo` are in the same directory.
 
 ## Usage
 
@@ -154,7 +154,7 @@ https://your-domain.com/?basePath=https://raw.githubusercontent.com/username/rep
 
 ### Allowed Domains
 
-To restrict the domains from which content can be loaded, set the `allowedDomains` variable in `docsify-content-fetcher.js`:
+To restrict the domains from which content can be loaded, set the `allowedDomains` variable in `docsify-remote-repo`:
 
 ```javascript
 var allowedDomains = options.allowedDomains || 'githubusercontent.com,raw.githubusercontent.com,gitlab.com';
@@ -187,7 +187,7 @@ In `index.html`, you can adjust the Docsify configuration:
 
 ## Plugin Details
 
-The `docsify-content-fetcher.js` plugin handles:
+The `docsify-remote-repo` plugin handles:
 
 - **Fetching Remote Content**: Processes the `basePath` and `homepage` parameters to load remote content.
 - **Adjusting Links and Images**: Modifies links and image paths to work correctly with remote content from GitHub, GitLab, or Codeberg.
@@ -236,7 +236,7 @@ https://your-domain.com/?basePath=https://raw.githubusercontent.com/username/rep
 - **Plugin Errors**:
 
   - Check the browser console for errors.
-  - Ensure `docsify-content-fetcher.js` is correctly linked in `index.html` and accessible.
+  - Ensure `docsify-remote-repo` is correctly linked in `index.html` and accessible.
 
 - **Layout Issues**:
 
@@ -261,7 +261,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 1. **Download the Files**:
 
-   - Save the `index.html`, `docsify-content-fetcher.js`, and `README.md` files.
+   - Save the `index.html`, `docsify-remote-repo`, and `README.md` files.
 
 2. **Host on GitHub Pages, GitLab Pages, or Your Preferred Platform**:
 
@@ -289,7 +289,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 4. **Customize as Needed**:
 
-   - Modify the `index.html` and `docsify-content-fetcher.js` files to suit your needs.
+   - Modify the `index.html` and `docsify-remote-repo` files to suit your needs.
    - Add custom styles or plugins as desired.
 
 ---
