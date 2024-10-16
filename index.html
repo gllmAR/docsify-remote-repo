@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Docsify-This Hosted Version</title>
+  <meta name="description" content="A hosted version of Docsify-This to display remote Markdown files.">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Docsify CSS and Themes -->
+  <!-- You can choose a theme from vue.css, buble.css, dark.css, pure.css -->
+  <link rel="stylesheet" href="//unpkg.com/docsify/lib/themes/vue.css">
+
+  <!-- Custom Styles (Optional) -->
+  <style>
+    /* Custom styles can go here */
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Docsify Configuration -->
+  <script>
+    window.$docsify = {
+      name: '',
+      repo: '',
+      homepage: 'README.md',
+      loadSidebar: false,
+      loadNavbar: true,
+      subMaxLevel: 2,
+      executeScript: true,
+      // Other configurations...
+
+      // Plugins array will include the remote repository plugin automatically
+    };
+  </script>
+
+  <!-- Docsify Main Script -->
+  <script src="//unpkg.com/docsify/lib/docsify.min.js"></script>
+
+  <!-- Remote Repository Plugin -->
+  <script src="remoteRepoPlugin.js"></script>
+
+  <!-- Additional Plugins and Scripts -->
+
+  <!-- Optional: Docsify Sidebar Collapse Plugin -->
+  <!-- <script src="//unpkg.com/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script> -->
+
+  <!-- Optional: Docsify Pagination Plugin -->
+  <!-- <script src="//unpkg.com/docsify-pagination/dist/docsify-pagination.min.js"></script> -->
+
+  <!-- Optional: Docsify Search Plugin -->
+  <!-- <script src="//unpkg.com/docsify/lib/plugins/search.min.js"></script> -->
+
+  <!-- Optional: Docsify Zoom Image Plugin -->
+  <!-- <script src="//unpkg.com/docsify/lib/plugins/zoom-image.min.js"></script> -->
+
+  <!-- Optional: Other Plugins -->
+  <!-- Include any other plugins you need -->
+
+  <!-- Custom Scripts (Optional) -->
+  <script>
+    // Any custom scripts can go here
+  </script>
+</body>
+</html>
