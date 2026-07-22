@@ -986,6 +986,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     parseRemoteRoute: parseRemoteRoute,
     splitRepoPath: splitRepoPath,
     buildSidebarCascade: buildSidebarCascade,
+    getRef: _getRef,
   };
 
   // ═══ NODE.JS TEST EXPORT ═══════════════════════════════════════════
@@ -1009,6 +1010,8 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
       findPrevNext,
       buildSidebarTree,
       buildTocHtml,
+      cachedFetch,
+      getSubmodules,
       escapeHtml,
       _getRef,
       parseFrontmatter,

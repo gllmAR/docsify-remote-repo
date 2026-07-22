@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Unit tests for docsify-remote-repo.js (v4)
-// Run:  node scripts/docsify-remote-repo.test.js
+// Run:  node docsify-remote-repo.test.js
 
 'use strict';
 const assert = require('node:assert/strict');
@@ -23,6 +23,8 @@ const {
   buildSidebarTree,
   buildTocHtml,
   escapeHtml,
+  cachedFetch,
+  getSubmodules,
   _getRef,
   parseFrontmatter,
   _resetLastRepo,
@@ -1288,6 +1290,256 @@ test('trailing whitespace on closing --- is tolerated', () => {
   const { fm } = parseFrontmatter(md);
   assert.ok(fm !== null);
   assert.equal(fm.pdf, 'x.pdf');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+console.log('\n── cachedFetch ──');
+
+// Mock fetch for cachedFetch tests
+let fetchCount = 0;
+let fetchResponses = [];
+let fetchErrors = [];
+
+function resetMockFetch() {
+  fetchCount = 0;
+  fetchResponses = [];
+  fetchErrors = [];
+}
+
+function mockResponse(body, status = 200) {
+  return { ok: status >= 200 && status < 300, status, text: () => Promise.resolve(body) };
+}
+
+globalThis.fetch = function (url) {
+  fetchCount++;
+  const err = fetchErrors.shift();
+  if (err) return Promise.reject(err);
+  const resp = fetchResponses.shift();
+  if (resp) return Promise.resolve(typeof resp === 'function' ? resp() : resp);
+  return Promise.resolve(mockResponse(url));
+};
+
+test('fetches and caches result', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('content A', 200));
+  const r1 = await cachedFetch('https://example.com/a');
+  assert.equal(r1, 'content A');
+  assert.equal(fetchCount, 1);
+  // second call should return cached, no new fetch
+  const r2 = await cachedFetch('https://example.com/a');
+  assert.equal(r2, 'content A');
+  assert.equal(fetchCount, 1);
+});
+
+test('deduplicates concurrent requests for same URL', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('shared', 200));
+  const [r1, r2] = await Promise.all([
+    cachedFetch('https://example.com/concurrent'),
+    cachedFetch('https://example.com/concurrent'),
+  ]);
+  assert.equal(r1, 'shared');
+  assert.equal(r2, 'shared');
+  assert.equal(fetchCount, 1);
+});
+
+test('different URLs fetch independently', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('one', 200), mockResponse('two', 200));
+  const [r1, r2] = await Promise.all([
+    cachedFetch('https://example.com/x'),
+    cachedFetch('https://example.com/y'),
+  ]);
+  assert.equal(r1, 'one');
+  assert.equal(r2, 'two');
+  assert.equal(fetchCount, 2);
+});
+
+test('4xx errors remain cached (permanent client error)', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('forbidden', 403));
+  try { await cachedFetch('https://example.com/403'); } catch (e) { /* expected */ }
+  assert.equal(fetchCount, 1);
+  // Second attempt should NOT retry — 4xx stays cached
+  fetchResponses.push(mockResponse('ok', 200)); // if retried, would get this
+  try { await cachedFetch('https://example.com/403'); } catch (e) {
+    assert.ok(e.message.includes('403'));
+  }
+  // Should NOT have fetched again if 4xx was properly cached
+  assert.equal(fetchCount, 1);
+});
+
+test('5xx errors clear cache (transient error, retry)', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('error', 500));
+  try { await cachedFetch('https://example.com/500'); } catch (e) { /* expected */ }
+  assert.equal(fetchCount, 1);
+  // 5xx should clear cache, so next call retries
+  fetchResponses.push(mockResponse('recovered', 200));
+  const r = await cachedFetch('https://example.com/500');
+  assert.equal(r, 'recovered');
+  assert.equal(fetchCount, 2);
+});
+
+test('network errors clear cache (retry)', async () => {
+  resetMockFetch();
+  fetchErrors.push(new Error('Network failure'));
+  try { await cachedFetch('https://example.com/net'); } catch (e) { /* expected */ }
+  assert.equal(fetchCount, 1);
+  // Network error should clear cache
+  fetchResponses.push(mockResponse('after-net', 200));
+  const r = await cachedFetch('https://example.com/net');
+  assert.equal(r, 'after-net');
+  assert.equal(fetchCount, 2);
+});
+
+test('3xx status is treated as ok', async () => {
+  resetMockFetch();
+  // 304 Not Modified — r.ok = true for < 400
+  fetchResponses.push(mockResponse('cached-content', 304));
+  const r = await cachedFetch('https://example.com/304');
+  assert.equal(r, 'cached-content');
+});
+
+test('FIFO eviction when cache exceeds 200 entries', async () => {
+  resetMockFetch();
+  // Fill cache with 200 unique URLs
+  for (let i = 0; i < 200; i++) {
+    fetchResponses.push(mockResponse(`content-${i}`, 200));
+  }
+  const firstUrl = 'https://example.com/first';
+  fetchResponses[0] = mockResponse('first-entry', 200);
+  // First entry
+  await cachedFetch(firstUrl);
+  // Fill rest
+  for (let i = 1; i < 200; i++) {
+    await cachedFetch(`https://example.com/${i}`);
+  }
+  // Cache is now full. First entry should still be cached.
+  // Add one more — should evict the oldest (first entry)
+  fetchResponses.push(mockResponse('new-entry', 200));
+  await cachedFetch('https://example.com/new');
+  assert.equal(fetchCount, 201);
+  // Now first entry should be evicted and re-fetched
+  fetchResponses.push(mockResponse('first-re-fetched', 200));
+  const reFetchResult = await cachedFetch(firstUrl);
+  assert.equal(reFetchResult, 'first-re-fetched');
+  assert.equal(fetchCount, 202);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+console.log('\n── getSubmodules ──');
+
+test('fetches and parses .gitmodules', async () => {
+  resetMockFetch();
+  const gitmodulesBody = [
+    '[submodule "lib/dep"]',
+    '\tpath = lib/dep',
+    '\turl = https://github.com/other/dep.git',
+  ].join('\n');
+  fetchResponses.push(mockResponse(gitmodulesBody, 200));
+  const mods = await getSubmodules('github.com', 'owner/repo', 'HEAD');
+  assert.equal(mods.size, 1);
+  const entry = mods.get('lib/dep');
+  assert.equal(entry.host, 'github.com');
+  assert.equal(entry.repoPath, 'other/dep');
+});
+
+test('failed .gitmodules fetch returns empty Map', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('not found', 404));
+  const mods = await getSubmodules('github.com', 'owner/repo', 'main');
+  assert.equal(mods.size, 0);
+});
+
+test('caches submodule results', async () => {
+  resetMockFetch();
+  fetchResponses.push(mockResponse('[submodule "x"]\n\tpath = x\n\turl = https://github.com/o/r\n', 200));
+  await getSubmodules('github.com', 'o/p', 'HEAD');
+  assert.equal(fetchCount, 1);
+  await getSubmodules('github.com', 'o/p', 'HEAD');
+  // Should use cached result, not re-fetch
+  assert.equal(fetchCount, 1);
+});
+
+test('registers submodule repos in __remoteRepoRegistry', async () => {
+  resetMockFetch();
+  window.__remoteRepoRegistry = new Set();
+  fetchResponses.push(mockResponse(
+    '[submodule "sub"]\n\tpath = sub\n\turl = https://gitlab.com/group/subrepo\n', 200));
+  await getSubmodules('gitlab.com', 'group/parent', 'HEAD');
+  assert.ok(window.__remoteRepoRegistry.has('gitlab.com/group/subrepo'));
+  delete window.__remoteRepoRegistry;
+});
+
+// ═══════════════════════════════════════════════════════════════════
+console.log('\n── Additional edge cases ──');
+
+test('buildContext with codeberg host', () => {
+  const ctx = buildContext('codeberg.org', 'user/repo', 'docs');
+  assert.equal(ctx.host, 'codeberg.org');
+  assert.equal(ctx.routePrefix, '/remote/codeberg.org/user/repo');
+  assert.ok(ctx.readmeUrl.includes('/api/v1/repos/'));
+  assert.ok(ctx.readmeUrl.includes('/raw/docs/README.md'));
+});
+
+test('parseSidebarEntries with empty markdown', () => {
+  assert.deepEqual(parseSidebarEntries(''), []);
+  assert.deepEqual(parseSidebarEntries('\n\n'), []);
+});
+
+test('buildTocHtml with null/undefined markdown', () => {
+  assert.equal(buildTocHtml(null, '/r'), '');
+  assert.equal(buildTocHtml(undefined, '/r'), '');
+});
+
+test('splitRepoPath: github deep path', () => {
+  _resetLastRepo();
+  const { repo, sub } = splitRepoPath('github.com', 'user/repo/a/b/c/d');
+  assert.equal(repo, 'user/repo');
+  assert.equal(sub, 'a/b/c/d');
+});
+
+test('buildSidebarCascade: codeberg root', () => {
+  const urls = buildSidebarCascade('codeberg.org', 'user/repo', '');
+  assert.equal(urls.length, 1);
+  assert.ok(urls[0].includes('/raw/_sidebar.md'));
+});
+
+test('buildSidebarCascade: codeberg sub with ref', () => {
+  const urls = buildSidebarCascade('codeberg.org', 'user/repo', 'docs/api', 'main');
+  assert.ok(urls[0].includes('/raw/docs/api/_sidebar.md'));
+  assert.ok(urls[0].includes('?ref=main'));
+});
+
+test('resolveNavHref: relative path without trailing slash', () => {
+  const href = resolveNavHref('other', '', '/remote/github.com/u/r', '/remote/github.com/u/r');
+  assert.equal(href, '/remote/github.com/u/r/other');
+});
+
+test('KNOWN_HOSTS includes all three hosts', () => {
+  assert.ok(KNOWN_HOSTS.includes('github.com'));
+  assert.ok(KNOWN_HOSTS.includes('gitlab.com'));
+  assert.ok(KNOWN_HOSTS.includes('codeberg.org'));
+});
+
+test('codeberg sidebarUrls with ref', () => {
+  const urls = HOSTS['codeberg.org'].sidebarUrls('user/repo', 'dev');
+  assert.ok(urls[0].includes('/raw/_sidebar.md'));
+});
+
+test('rewriteMarkdown: image with leading ./ in sub-path', () => {
+  const ctx = mkCtx({ sub: 'docs', base: 'https://raw.githubusercontent.com/user/repo/HEAD/docs/' });
+  const md = rewriteMarkdown('![img](./pic.png)', ctx);
+  assert.ok(md.includes('docs/pic.png'));
+});
+
+test('rewriteMarkdown: href with query params preserved as raw URL', () => {
+  const ctx = mkCtx();
+  const md = rewriteMarkdown('[x](file.pdf?v=2)', ctx);
+  assert.ok(md.includes('raw.githubusercontent.com'));
+  assert.ok(md.includes('file.pdf'));
+  assert.ok(md.includes('v=2'));
 });
 
 
