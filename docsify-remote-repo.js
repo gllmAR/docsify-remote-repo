@@ -812,9 +812,9 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
         var cm = matchContentMap(path);
         if (cm) {
           if (!content.includes(PLACEHOLDER)) { next(content); return; }
-          var ctx = buildContext(cm.host, cm.repo, cm.sub, cm.prefix, cm.ref);
-          var submodulesP = getSubmodules(cm.host, cm.repo, ctx.ref);
-          cachedFetch(ctx.readmeUrl).then(function (md) {
+          var cmCtx = buildContext(cm.host, cm.repo, cm.sub, cm.prefix, cm.ref);
+          var submodulesP = getSubmodules(cm.host, cm.repo, cmCtx.ref);
+          cachedFetch(cmCtx.readmeUrl).then(function (md) {
             var parsed = parseFrontmatter(md);
             var body = parsed.body || md;
             if (parsed.fm) {
@@ -825,7 +825,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
             window.__remoteLastPath = path;
             _pendingSidebar = null;  // use existing local sidebar
             submodulesP.then(function (sm) {
-              next(rewriteMarkdown(body, ctx, sm));
+              next(rewriteMarkdown(body, cmCtx, sm));
             });
           }).catch(function () {
             next('# Not found\n\n> Cannot fetch remote content for `' + cm.repo + (cm.sub ? '/' + cm.sub : '') + '`.');
