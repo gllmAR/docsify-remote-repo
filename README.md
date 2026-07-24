@@ -11,7 +11,9 @@ A browser-side plugin for [Docsify 5](https://docsify.js.org) that renders remot
   <meta charset="UTF-8">
   <title>docsify-remote-repo demo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="//unpkg.com/docsify/lib/themes/vue.css">
+  <!-- Docsify 5 theme -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/themes/core.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/themes/addons/core-dark.min.css" media="(prefers-color-scheme: dark)">
 </head>
 <body>
   <div id="app"></div>
@@ -19,7 +21,7 @@ A browser-side plugin for [Docsify 5](https://docsify.js.org) that renders remot
     window.$docsify = {
       name: 'Docs',
       homepage: 'README.md',
-      loadSidebar: false,
+      loadSidebar: true,
       subMaxLevel: 2,
       // Optional: pin remote repos to a specific branch/tag
       // remoteRepo: { ref: 'main' },
@@ -27,9 +29,13 @@ A browser-side plugin for [Docsify 5](https://docsify.js.org) that renders remot
       // pagination: { crossChapter: true },
     };
   </script>
-  <script src="//unpkg.com/docsify/lib/docsify.min.js"></script>
-  <!-- Load the plugin (single file, no dependencies) -->
+  <!-- Plugin must load before Docsify so it registers hooks + aliases in time -->
   <script src="https://raw.githubusercontent.com/gllmar/docsify-remote-repo/HEAD/docsify-remote-repo.js"></script>
+  <!-- Docsify 5 core -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/plugins/front-matter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script>
 </body>
 </html>
 ```
@@ -58,20 +64,38 @@ The plugin handles complex real-world scenarios out of the box:
 
 These repos feature sidebar cascading, heading TOC generation, nested image-link grids, submodule-aware media rewriting, cross-project navigation, and YAML frontmatter — all handled automatically.
 
+### Sidebar links
+
+Use **explicit `/remote/...` paths** in your sidebar. The `:repo` rewriting only runs on page content, not sidebar markdown in Docsify 5 RC:
+
+```markdown
+- Projects
+  - [SN — Balado](/remote/codeberg.org/tim-montmorency/sn)
+  - [Création multimédia](/remote/codeberg.org/tim-montmorency/582705MO-2026-01)
+  - [Pharmakon](/remote/gitlab.com/sr-expo/artwork/2025/pharmakon)
+```
+
+### Git submodules for offline access
+
+Add repos as git submodules under `projects/` if you want local copies for development or offline browsing. The sidebar still uses `/remote/` paths — the plugin always fetches live content from the forge:
+
+```bash
+git submodule add https://codeberg.org/tim-montmorency/sn projects/sn
+git submodule add https://codeberg.org/tim-montmorency/582705MO-2026-01 projects/582705MO-2026-01
+git submodule add https://gitlab.com/sr-expo/artwork/2025/pharmakon projects/pharmakon
+```
+
 ## Usage
 
 ### Installation
 
-A single `<script>` tag — no build step, no dependencies:
+A single `<script>` tag — no build step, no dependencies. Load it **before** Docsify:
 
 ```html
+<!-- Plugin (before Docsify) -->
 <script src="https://raw.githubusercontent.com/gllmar/docsify-remote-repo/HEAD/docsify-remote-repo.js"></script>
-```
-
-Or pin to a specific commit for stability:
-
-```html
-<script src="https://cdn.jsdelivr.net/gh/gllmar/docsify-remote-repo@<tag>/docsify-remote-repo.js"></script>
+<!-- Docsify 5 RC -->
+<script src="https://cdn.jsdelivr.net/npm/docsify@^5.0.0-rc/dist/docsify.min.js"></script>
 ```
 
 ### Link syntax

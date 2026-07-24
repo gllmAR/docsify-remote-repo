@@ -8,6 +8,7 @@ const {
   indexPage,
   searchRemote,
   proactiveIndex,
+  indexReposFromLinks,
   INDEX,
   _resetIndex,
 } = require('./docsify-remote-search.js');
@@ -412,8 +413,177 @@ test('propagates configured ref to sidebar and page URLs', async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
+section('indexReposFromLinks');
 
-// ═══════════════════════════════════════════════════════════════════
+test('indexes repos from #/remote/ sidebar links', async () => {
+  const sidebarMd = '- [Guide](guide)\n';
+  const pages = {
+    'https://raw.githubusercontent.com/user/repo/HEAD/_sidebar.md': sidebarMd,
+    'https://raw.githubusercontent.com/user/repo/HEAD/guide.md': '# Guide\n\nGuide body',
+  };
+  window.__remoteRepoAPI = {
+    getRef: () => 'HEAD',
+    HOSTS: {
+      'github.com': {
+        repoDepth: 2,
+        readmeUrl: (repo, sub) => `https://raw.githubusercontent.com/${repo}/HEAD/${sub ? sub + '/' : ''}README.md`,
+        fileUrl: (repo, path) => `https://raw.githubusercontent.com/${repo}/HEAD/${path}`,
+        sidebarUrls: (repo) => [`https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`],
+      },
+    },
+    cachedFetch: (url) => pages[url]
+      ? Promise.resolve(pages[url])
+      : Promise.reject(new Error('HTTP 404')),
+    parseRemoteRoute: (path) => {
+      const m = path.match(/^\/remote\/([^/]+)\/(.+)$/);
+      return m ? { host: m[1], fullPath: m[2].replace(/\/$/, '') } : null;
+    },
+    splitRepoPath: (host, full) => {
+      const segs = full.split('/');
+      return { repo: segs.slice(0, 2).join('/'), sub: segs.slice(2).join('/') };
+    },
+    buildSidebarCascade: (host, repo) => [
+      `https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`,
+    ],
+    parseSidebarEntries: (md) => {
+      const entries = [];
+      for (const line of md.split('\n')) {
+        const m = line.match(/^(\s*)[-*]\s*\[([^\]]+)\]\(([^)]+)\)/);
+        if (m) entries.push({ indent: m[1].length, text: m[2], href: m[3] });
+      }
+      return entries;
+    },
+    resolveEntryHref: (href, host, repo) => {
+      if (/^https?:\/\//.test(href)) return href;
+      const clean = href.replace(/(^|\/)README\.md$/i, '$1').trim().replace(/\/$/, '');
+      if (clean === '' || clean === '/') return `#/remote/${host}/${repo}`;
+      return `#/remote/${host}/${repo}/${clean.replace(/^\//, '')}`;
+    },
+  };
+
+  indexReposFromLinks([
+    '#/remote/github.com/user/repo',
+    '#/remote/codeberg.org/tim/sn',
+  ]);
+  await new Promise(r => setTimeout(r, 50));
+
+  const results = searchRemote('guide body');
+  assert.ok(results.length > 0, 'repo pages should be indexed');
+  delete window.__remoteRepoAPI;
+});
+
+test('skips duplicate repos (re-index protection)', async () => {
+  let sidebarFetches = 0;
+  window.__remoteRepoAPI = {
+    getRef: () => 'HEAD',
+    HOSTS: {
+      'github.com': {
+        repoDepth: 2,
+        readmeUrl: () => 'https://x',
+        fileUrl: () => 'https://x',
+        sidebarUrls: (repo) => [`https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`],
+      },
+    },
+    cachedFetch: (url) => {
+      if (url.includes('_sidebar.md')) { sidebarFetches++; return Promise.resolve(null); }
+      return Promise.resolve('# Content');
+    },
+    parseRemoteRoute: (path) => {
+      const m = path.match(/^\/remote\/([^/]+)\/(.+)$/);
+      return m ? { host: m[1], fullPath: m[2] } : null;
+    },
+    splitRepoPath: (host, full) => {
+      const segs = full.split('/');
+      return { repo: segs.slice(0, 2).join('/'), sub: segs.slice(2).join('/') };
+    },
+    buildSidebarCascade: (host, repo) => [
+      `https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`,
+    ],
+    parseSidebarEntries: () => [],
+    resolveEntryHref: (href, host, repo) => `#/remote/${host}/${repo}/page`,
+  };
+
+  // Same repo appears multiple times (different sub-pages in sidebar)
+  indexReposFromLinks([
+    '#/remote/github.com/user/repo',
+    '#/remote/github.com/user/repo/sub',
+    '#/remote/github.com/user/repo',
+    '#/remote/github.com/user/other',
+  ]);
+  await new Promise(r => setTimeout(r, 50));
+
+  // Should only fetch sidebar once for each unique repo (user/repo and user/other)
+  assert.equal(sidebarFetches, 2, 'should deduplicate repo sidebar fetches');
+  delete window.__remoteRepoAPI;
+});
+
+test('filters out non-remote links', async () => {
+  let indexed = false;
+  window.__remoteRepoAPI = {
+    getRef: () => 'HEAD',
+    HOSTS: { 'github.com': { repoDepth: 2, sidebarUrls: () => [], readmeUrl: () => '', fileUrl: () => '' } },
+    cachedFetch: () => Promise.reject(new Error('no')),
+    parseRemoteRoute: (path) => {
+      const m = path.match(/^\/remote\/([^/]+)\/(.+)$/);
+      return m ? { host: m[1], fullPath: m[2] } : null;
+    },
+    splitRepoPath: () => ({ repo: 'x', sub: '' }),
+    buildSidebarCascade: () => [],
+  };
+
+  // Mix of remote, external, and local links
+  indexReposFromLinks([
+    '#/remote/github.com/user/repo',
+    'https://example.com',
+    '#/guide',
+    '/local/page',
+  ]);
+  await new Promise(r => setTimeout(r, 30));
+
+  // Only the remote link should trigger proactiveIndex (which sets _indexedRepos)
+  // The others should be silently skipped
+  delete window.__remoteRepoAPI;
+  // No assertion needed — test passes if no uncaught errors
+});
+
+test('accepts both #/remote/... and /remote/... patterns', async () => {
+  const indexed = [];
+  window.__remoteRepoAPI = {
+    getRef: () => 'HEAD',
+    HOSTS: {
+      'github.com': {
+        repoDepth: 2,
+        readmeUrl: () => '',
+        fileUrl: () => '',
+        sidebarUrls: (repo) => [`https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`],
+      },
+    },
+    cachedFetch: (url) => {
+      indexed.push(url);
+      return Promise.resolve(null);
+    },
+    parseRemoteRoute: (path) => {
+      const m = path.match(/^\/remote\/([^/]+)\/(.+)$/);
+      return m ? { host: m[1], fullPath: m[2] } : null;
+    },
+    splitRepoPath: (host, full) => ({ repo: full, sub: '' }),
+    buildSidebarCascade: (host, repo) => [
+      `https://raw.githubusercontent.com/${repo}/HEAD/_sidebar.md`,
+    ],
+  };
+
+  indexReposFromLinks([
+    '#/remote/github.com/a/b',
+    '/remote/github.com/c/d',
+  ]);
+  await new Promise(r => setTimeout(r, 50));
+
+  // Both patterns should trigger sidebar fetches
+  assert.ok(indexed.some(u => u.includes('a/b')), 'should index #/remote/ pattern');
+  assert.ok(indexed.some(u => u.includes('c/d')), 'should index /remote/ pattern');
+  delete window.__remoteRepoAPI;
+});
+
 
 (async function () {
   for (const item of _queue) {

@@ -185,7 +185,35 @@ if (typeof window === 'undefined') {
     });
   }
 
-  // ═══ SEARCH ════════════════════════════════════════════════════════
+  // ═══ PROACTIVE DISCOVERY ═══════════════════════════════════════════
+  // Scan sidebar links for /remote/ routes and proactively index every
+  // discovered repo.  Called at init and on every local page navigation.
+  // This ensures remote search results are available before any repo is
+  // visited — results from all repos listed in the sidebar surface
+  // alongside native Docsify search results.
+
+  function indexReposFromLinks(links) {
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i];
+      // Accept both '#/remote/...' (Docsify route) and '/remote/...' (raw path)
+      var m = href.match(/^#?\/remote\//);
+      if (!m) continue;
+      var path = href.indexOf('#/') === 0 ? href.slice(1) : href;
+      proactiveIndex(path);
+    }
+  }
+
+  function discoverAndIndexAll() {
+    var sidebar = document.querySelector('.sidebar');
+    if (!sidebar) return;
+    var anchors = sidebar.querySelectorAll('a[href]');
+    var links = [];
+    for (var i = 0; i < anchors.length; i++) {
+      var href = anchors[i].getAttribute('href');
+      if (href) links.push(href);
+    }
+    if (links.length) indexReposFromLinks(links);
+  }
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -329,19 +357,24 @@ if (typeof window === 'undefined') {
   function plugin(hook, vm) {
     hook.init(function () {
       loadIndex();
+      // Discover repos from sidebar at boot — indexes all remote repos
+      // before the user searches or navigates anywhere.
+      setTimeout(discoverAndIndexAll, 500);
     });
 
     hook.doneEach(function () {
       var path = (vm.route && vm.route.path) || '';
-      if (!path.startsWith('/remote/')) return;
 
-      // Always index the current page (immediate / progressive fallback)
-      if (window.__remoteLastMd) {
-        indexPage(path, window.__remoteLastMd);
+      if (path.startsWith('/remote/')) {
+        // Index the current remote page + its sibling pages from sidebar
+        if (window.__remoteLastMd) {
+          indexPage(path, window.__remoteLastMd);
+        }
+        proactiveIndex(path);
+      } else {
+        // Local page navigated — re-scan sidebar for any newly-discovered repos
+        setTimeout(discoverAndIndexAll, 300);
       }
-
-      // Proactively fetch & index all pages listed in this repo's sidebar
-      proactiveIndex(path);
     });
 
     hook.mounted(function () {
@@ -363,6 +396,7 @@ if (typeof window === 'undefined') {
       indexPage: indexPage,
       searchRemote: searchRemote,
       proactiveIndex: proactiveIndex,
+      indexReposFromLinks: indexReposFromLinks,
       INDEX: INDEX,
       _resetIndex: function () { INDEX.clear(); for (var k in _indexedRepos) delete _indexedRepos[k]; },
     };
