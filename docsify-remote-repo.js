@@ -809,22 +809,22 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
       if (!path.startsWith('/remote/')) {
 
         // ── contentMap: map local-looking paths to remote repos ──────
-        var cm = matchContentMap(path);
+        const cm = matchContentMap(path);
         if (cm) {
           if (!content.includes(PLACEHOLDER)) { next(content); return; }
-          var cmCtx = buildContext(cm.host, cm.repo, cm.sub, cm.prefix, cm.ref);
-          var submodulesP = getSubmodules(cm.host, cm.repo, cmCtx.ref);
+          const cmCtx = buildContext(cm.host, cm.repo, cm.sub, cm.prefix, cm.ref);
+          const cmSubmodulesP = getSubmodules(cm.host, cm.repo, cmCtx.ref);
           cachedFetch(cmCtx.readmeUrl).then(function (md) {
-            var parsed = parseFrontmatter(md);
-            var body = parsed.body || md;
+            const parsed = parseFrontmatter(md);
+            const body = parsed.body || md;
             if (parsed.fm) {
               vm.frontmatter = Object.assign({}, vm.frontmatter || {}, parsed.fm);
             }
             _lastMd = body;
             window.__remoteLastMd = body;
             window.__remoteLastPath = path;
-            _pendingSidebar = null;  // use existing local sidebar
-            submodulesP.then(function (sm) {
+            _pendingSidebar = null;
+            cmSubmodulesP.then(function (sm) {
               next(rewriteMarkdown(body, cmCtx, sm));
             });
           }).catch(function () {
