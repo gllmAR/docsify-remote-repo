@@ -202,10 +202,25 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     return (window.$docsify && window.$docsify.remoteRepo && window.$docsify.remoteRepo.ref) || 'HEAD';
   }
 
+  /** Match a Docsify route against the contentMap config.
+   *  Returns {host, repo, sub, ref, prefix} or null. */
+  function matchContentMap(path) {
+    var map = (window.$docsify && window.$docsify.contentMap) || {};
+    for (var prefix in map) {
+      if (!Object.prototype.hasOwnProperty.call(map, prefix)) continue;
+      if (path === prefix || path === prefix.slice(0, -1) || path.startsWith(prefix)) {
+        var entry = map[prefix];
+        var rel = path.slice(prefix.length).replace(/\/$/, '');
+        return { host: entry.host, repo: entry.repo, sub: rel || '', ref: entry.ref || 'HEAD', prefix: prefix };
+      }
+    }
+    return null;
+  }
+
   /** Build a context object with everything needed to fetch + rewrite. */
-  function buildContext(host, repo, sub) {
+  function buildContext(host, repo, sub, routePrefix, refOverride) {
     const h = HOSTS[host];
-    const ref = _getRef();
+    const ref = refOverride || _getRef();
     const rawBase = h.rawBase(repo, ref);
     const isFile  = /\.md$/i.test(sub);
     const maybeMd = !isFile && sub && !/\.\w+$/.test(sub);
@@ -216,7 +231,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     return {
       host, repo, sub: sub || '',
       ref,
-      routePrefix: `/remote/${host}/${repo}`,
+      routePrefix: routePrefix || `/remote/${host}/${repo}`,
       rawBase,
       base:        rawBase + dir,
       readmeUrl:   isFile ? h.fileUrl(repo, sub, ref) : h.readmeUrl(repo, sub, ref),
@@ -792,6 +807,32 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
 
       // Local route — rewrite :repo links, capture list, track back-link
       if (!path.startsWith('/remote/')) {
+
+        // ── contentMap: map local-looking paths to remote repos ──────
+        var cm = matchContentMap(path);
+        if (cm) {
+          if (!content.includes(PLACEHOLDER)) { next(content); return; }
+          var ctx = buildContext(cm.host, cm.repo, cm.sub, cm.prefix, cm.ref);
+          var submodulesP = getSubmodules(cm.host, cm.repo, ctx.ref);
+          cachedFetch(ctx.readmeUrl).then(function (md) {
+            var parsed = parseFrontmatter(md);
+            var body = parsed.body || md;
+            if (parsed.fm) {
+              vm.frontmatter = Object.assign({}, vm.frontmatter || {}, parsed.fm);
+            }
+            _lastMd = body;
+            window.__remoteLastMd = body;
+            window.__remoteLastPath = path;
+            _pendingSidebar = null;  // use existing local sidebar
+            submodulesP.then(function (sm) {
+              next(rewriteMarkdown(body, ctx, sm));
+            });
+          }).catch(function () {
+            next('# Not found\n\n> Cannot fetch remote content for `' + cm.repo + (cm.sub ? '/' + cm.sub : '') + '`.');
+          });
+          return;
+        }
+
         // Capture repo links for cross-project pagination
         const links = collectRepoLinks(content);
         if (links.length > 0) {
@@ -974,6 +1015,16 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     '/remote/.*/_navbar\\.md':  '/_navbar.md',
     '/remote/.*': 'data:text/plain,' + encodeURIComponent(PLACEHOLDER),
   }, _existing);
+  // Register contentMap aliases so Docsify routes them to the placeholder
+  var _cm = (window.$docsify && window.$docsify.contentMap) || {};
+  var _cmAliases = {};
+  for (var cmPrefix in _cm) {
+    if (!Object.prototype.hasOwnProperty.call(_cm, cmPrefix)) continue;
+    _cmAliases[cmPrefix + '.*/_sidebar\\.md'] = '/_sidebar.md';
+    _cmAliases[cmPrefix + '.*/_navbar\\.md'] = '/_navbar.md';
+    _cmAliases[cmPrefix + '.*'] = 'data:text/plain,' + encodeURIComponent(PLACEHOLDER);
+  }
+  window.$docsify.alias = Object.assign(_cmAliases, window.$docsify.alias);
   window.$docsify.plugins = (window.$docsify.plugins || []).concat(plugin);
 
   // ═══ BROWSER API (for companion plugins) ════════════════════════════
