@@ -521,7 +521,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
   function parseSidebarEntries(md) {
     const entries = [];
     for (const line of md.split('\n')) {
-      const m = line.match(/^(\s*)[-*]\s*\[([^\]]+)\]\(([^)]+)\)/);
+      const m = line.match(/^(\s*)[-*]\s*\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\s*\)/);
       if (m) entries.push({ indent: m[1].length, text: m[2], href: m[3] });
     }
     return entries;
