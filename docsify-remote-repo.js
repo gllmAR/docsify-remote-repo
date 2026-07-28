@@ -64,7 +64,8 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
 
     'codeberg.org': {
       repoDepth: 2,
-      rawBase:  (repo) => `https://codeberg.org/api/v1/repos/${repo}/raw/`,
+      rawBase:   (repo) => `https://codeberg.org/api/v1/repos/${repo}/raw/`,
+      mediaBase: (repo) => `https://codeberg.org/api/v1/repos/${repo}/media/`,
       _api(repo, path, ref = '') {
         const url = `https://codeberg.org/api/v1/repos/${repo}/raw/${path}`;
         return ref && ref !== 'HEAD' ? `${url}?ref=${encodeURIComponent(ref)}` : url;
@@ -233,6 +234,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
       ref,
       routePrefix: routePrefix || `/remote/${host}/${repo}`,
       rawBase,
+      mediaBase:   (h.mediaBase ? h.mediaBase(repo, ref) : '') || rawBase,
       base:        rawBase + dir,
       readmeUrl:   isFile ? h.fileUrl(repo, sub, ref) : h.readmeUrl(repo, sub, ref),
       mdFileUrl:   maybeMd ? h.fileUrl(repo, sub + '.md', ref) : null,
@@ -376,7 +378,9 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
   }
 
   function rewriteMarkdown(md, ctx, submodules) {
-    const { base, rawBase, routePrefix, sub } = ctx;
+    const { base, rawBase, mediaBase, routePrefix, sub } = ctx;
+    // Media extensions that should use mediaBase (LFS-compatible) instead of rawBase
+    const MEDIA_EXTS = /\.(?:m3u8|ts|m4a|mp3|wav|aiff|ogg|flac|opus|webm|vtt)$/i;
     // Current route for relative link resolution
     const currentRoute = sub ? `${routePrefix}/${sub}` : routePrefix;
     // Repo-relative directory for submodule path checks
@@ -484,7 +488,10 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
         const norm = url.replace(/^\.?\//, '');
         const sm = submodules && url.charAt(0) !== '/' && resolveSubmodule(submodules, dir + norm);
         if (sm) return pre + HOSTS[sm.host].rawBase(sm.repoPath) + sm.remaining + q;
-        const abs = url.charAt(0) === '/' ? rawBase + url.slice(1) : base + norm;
+        const useMedia = MEDIA_EXTS.test(url);
+        const abs = url.charAt(0) === '/'
+          ? (useMedia ? mediaBase + url.slice(1) : rawBase + url.slice(1))
+          : (useMedia ? mediaBase + dir + norm : base + norm);
         return pre + abs + q;
       }
     );
