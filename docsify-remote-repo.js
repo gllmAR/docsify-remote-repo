@@ -479,7 +479,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
 
     // HTML media tags: src/data attributes (submodule-aware)
     md = md.replace(
-      /(<(?:img|source|video|audio|object|iframe|embed)\b[^>]*?\b(?:src|data)=["'])(?![a-zA-Z][a-zA-Z0-9+.-]*:|#|\\)([^"']+)(["'])/gi,
+      /(<(?:img|source|track|video|audio|object|iframe|embed)\b[^>]*?\b(?:src|data)=["'])(?![a-zA-Z][a-zA-Z0-9+.-]*:|#|\\)([^"']+)(["'])/gi,
       (_, pre, url, q) => {
         const norm = url.replace(/^\.?\//, '');
         const sm = submodules && url.charAt(0) !== '/' && resolveSubmodule(submodules, dir + norm);
