@@ -27,6 +27,7 @@ const {
   getSubmodules,
   _getRef,
   parseFrontmatter,
+  rawFileUrl,
   _resetLastRepo,
 } = require('./docsify-remote-repo.js');
 
@@ -225,6 +226,46 @@ test('remembers last repo for sub-nav', () => {
   const { repo, sub } = splitRepoPath('github.com', 'user/repo/other/path');
   assert.equal(repo, 'user/repo');
   assert.equal(sub, 'other/path');
+});
+
+// ═══════════════════════════════════════════════════════════════════
+console.log('\n── rawFileUrl ──');
+
+test('github pdf route → raw URL', () => {
+  const url = rawFileUrl('github.com', 'user/repo/docs/guide.pdf');
+  assert.equal(url, 'https://raw.githubusercontent.com/user/repo/HEAD/docs/guide.pdf');
+});
+
+test('gitlab subgroup pdf route (registry) → raw URL', () => {
+  window.__remoteRepoRegistry = new Set([
+    'gitlab.com/sr-expo/artwork/2024/cyberdelia',
+  ]);
+  try {
+    const url = rawFileUrl(
+      'gitlab.com',
+      'sr-expo/artwork/2024/cyberdelia/types/6-compact/cyberdelia-compact.pdf'
+    );
+    assert.equal(
+      url,
+      'https://gitlab.com/sr-expo/artwork/2024/cyberdelia/-/raw/HEAD/types/6-compact/cyberdelia-compact.pdf'
+    );
+  } finally {
+    delete window.__remoteRepoRegistry;
+  }
+});
+
+test('codeberg file route → raw URL', () => {
+  const url = rawFileUrl('codeberg.org', 'gllm/myrepo/docs/image.svg');
+  assert.equal(url, 'https://codeberg.org/api/v1/repos/gllm/myrepo/raw/docs/image.svg');
+});
+
+test('md route → null (normal README flow)', () => {
+  assert.equal(rawFileUrl('github.com', 'user/repo/docs/page.md'), null);
+});
+
+test('dir route → null', () => {
+  assert.equal(rawFileUrl('github.com', 'user/repo/docs'), null);
+  assert.equal(rawFileUrl('github.com', 'user/repo'), null);
 });
 
 // ═══════════════════════════════════════════════════════════════════

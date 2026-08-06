@@ -203,6 +203,18 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     return (window.$docsify && window.$docsify.remoteRepo && window.$docsify.remoteRepo.ref) || 'HEAD';
   }
 
+  /**
+   * Raw file URL for a /remote/ route ending in a non-.md extension
+   * (e.g. '…/file.pdf'), or null when the route isn't a raw file.
+   * Used as a safety net: dead SPA links to repo files hard-redirect
+   * to the forge's raw content URL.
+   */
+  function rawFileUrl(host, fullPath) {
+    if (!/\.\w+$/.test(fullPath) || /\.md$/i.test(fullPath)) return null;
+    const fr = splitRepoPath(host, fullPath);
+    return HOSTS[host].rawBase(fr.repo, _getRef()) + fr.sub;
+  }
+
   /** Match a Docsify route against the contentMap config.
    *  Returns {host, repo, sub, ref, prefix} or null. */
   function matchContentMap(path) {
@@ -868,6 +880,19 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
         return;
       }
 
+      // ── Raw file routes: /remote/…/file.pdf → direct raw URL ──────────
+      // A route ending in a non-.md file extension can't be a README —
+      // it's a dead SPA link to a file in the remote repo (e.g. a PDF
+      // button computed before docsify-pdf-link gained remote support).
+      // Hard-redirect to the forge's raw content URL as a safety net.
+      const raw = rawFileUrl(parsed.host, parsed.fullPath);
+      if (raw !== null) {
+        _pendingSidebar = null;
+        next('');
+        setTimeout(function () { window.location.href = raw; }, 0);
+        return;
+      }
+
       const { repo, sub } = splitRepoPath(parsed.host, parsed.fullPath);
       const ctx = buildContext(parsed.host, repo, sub);
 
@@ -1045,6 +1070,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     splitRepoPath: splitRepoPath,
     buildSidebarCascade: buildSidebarCascade,
     getRef: _getRef,
+    rawFileUrl: rawFileUrl,
   };
 
   // ═══ NODE.JS TEST EXPORT ═══════════════════════════════════════════
@@ -1073,6 +1099,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
       escapeHtml,
       _getRef,
       parseFrontmatter,
+      rawFileUrl,
       _resetLastRepo() { _lastRepo = null; },
     };
   }
