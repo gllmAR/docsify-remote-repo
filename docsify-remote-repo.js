@@ -212,7 +212,10 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
   function rawFileUrl(host, fullPath) {
     if (!/\.\w+$/.test(fullPath) || /\.md$/i.test(fullPath)) return null;
     const fr = splitRepoPath(host, fullPath);
-    return HOSTS[host].rawBase(fr.repo, _getRef()) + fr.sub;
+    // Per-segment encoding: escape non-ASCII chars and URI delimiters
+    // (é, spaces, #, ? …) while keeping the path separators.
+    const sub = fr.sub.split('/').map(encodeURIComponent).join('/');
+    return HOSTS[host].rawBase(fr.repo, _getRef()) + sub;
   }
 
   /** Match a Docsify route against the contentMap config.

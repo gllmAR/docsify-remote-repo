@@ -259,6 +259,27 @@ test('codeberg file route → raw URL', () => {
   assert.equal(url, 'https://codeberg.org/api/v1/repos/gllm/myrepo/raw/docs/image.svg');
 });
 
+test('accented + special-char filename is percent-encoded', () => {
+  window.__remoteRepoRegistry = new Set([
+    'gitlab.com/sr-expo/artwork/2026/survey-of-waves',
+  ]);
+  try {
+    const url = rawFileUrl(
+      'gitlab.com',
+      'sr-expo/artwork/2026/survey-of-waves/types/1-architectural_projection/' +
+        'Sabrina_Ratté_Survey-of-Waves_architectural-projection.pdf'
+    );
+    assert.equal(
+      url,
+      'https://gitlab.com/sr-expo/artwork/2026/survey-of-waves/-/raw/HEAD/' +
+        'types/1-architectural_projection/' +
+        'Sabrina_Ratt%C3%A9_Survey-of-Waves_architectural-projection.pdf'
+    );
+  } finally {
+    delete window.__remoteRepoRegistry;
+  }
+});
+
 test('md route → null (normal README flow)', () => {
   assert.equal(rawFileUrl('github.com', 'user/repo/docs/page.md'), null);
 });
