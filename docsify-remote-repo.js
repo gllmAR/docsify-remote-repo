@@ -65,7 +65,12 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
     'codeberg.org': {
       repoDepth: 2,
       rawBase:   (repo) => `https://codeberg.org/api/v1/repos/${repo}/raw/`,
-      mediaBase: (repo) => `https://codeberg.org/api/v1/repos/${repo}/media/`,
+      // Pages URLs resolve Git LFS objects and are same-origin for
+      // {owner}.codeberg.page sites (no CORS, native <track> loading).
+      mediaBase: (repo) => {
+        const [owner, name] = repo.split('/');
+        return `https://${owner}.codeberg.page/${name}/`;
+      },
       _api(repo, path, ref = '') {
         const url = `https://codeberg.org/api/v1/repos/${repo}/raw/${path}`;
         return ref && ref !== 'HEAD' ? `${url}?ref=${encodeURIComponent(ref)}` : url;
