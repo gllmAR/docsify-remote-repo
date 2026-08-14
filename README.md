@@ -46,7 +46,7 @@ Then in your homepage markdown, create links to repos using the `':repo'` title:
 ## Projects
 
 - [SN — Balado](https://codeberg.org/tim-montmorency/sn ':repo')
-- [Introduction à la création multimédia](https://codeberg.org/tim-montmorency/582705MO-2026-01 ':repo')
+- [Introduction à la création multimédia](https://codeberg.org/tim-montmorency/582705MO-2026-1 ':repo')
 - [Pharmakon](https://gitlab.com/sr-expo/artwork/2025/pharmakon ':repo')
 ```
 
@@ -59,7 +59,7 @@ The plugin handles complex real-world scenarios out of the box:
 | Repo | Host | Demonstrates |
 |------|------|-------------|
 | [SN — Balado](https://codeberg.org/tim-montmorency/sn ':repo') | Codeberg | Submodules (balado), multi-language README, lexicon TOML, CI scripts |
-| [582705MO-2026-01](https://codeberg.org/tim-montmorency/582705MO-2026-01 ':repo') | Codeberg | Deep sidebar nesting (5-level), multiple submodules (docsh, typst), `_sidebar.md` across directories, CI/CD with Codeberg Pages |
+| [582705MO-2026-1](https://codeberg.org/tim-montmorency/582705MO-2026-1 ':repo') | Codeberg | Deep sidebar nesting (5-level), multiple submodules (docsh, typst), `_sidebar.md` across directories, CI/CD with Codeberg Pages |
 | [Pharmakon](https://gitlab.com/sr-expo/artwork/2025/pharmakon ':repo') | GitLab | Variable-depth subgroups (`sr-expo/artwork/2025/pharmakon`), GitLab pages fallback |
 
 These repos feature sidebar cascading, heading TOC generation, nested image-link grids, submodule-aware media rewriting, cross-project navigation, and YAML frontmatter — all handled automatically.
@@ -71,7 +71,7 @@ Use **explicit `/remote/...` paths** in your sidebar. The `:repo` rewriting only
 ```markdown
 - Projects
   - [SN — Balado](/remote/codeberg.org/tim-montmorency/sn)
-  - [Création multimédia](/remote/codeberg.org/tim-montmorency/582705MO-2026-01)
+  - [Création multimédia](/remote/codeberg.org/tim-montmorency/582705MO-2026-1)
   - [Pharmakon](/remote/gitlab.com/sr-expo/artwork/2025/pharmakon)
 ```
 
@@ -81,7 +81,7 @@ Add repos as git submodules under `projects/` if you want local copies for devel
 
 ```bash
 git submodule add https://codeberg.org/tim-montmorency/sn projects/sn
-git submodule add https://codeberg.org/tim-montmorency/582705MO-2026-01 projects/582705MO-2026-01
+git submodule add https://codeberg.org/tim-montmorency/582705MO-2026-1 projects/582705MO-2026-1
 git submodule add https://gitlab.com/sr-expo/artwork/2025/pharmakon projects/pharmakon
 ```
 
