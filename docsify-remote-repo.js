@@ -519,7 +519,13 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
         const abs = url.charAt(0) === '/'
           ? (useMedia ? mediaBase + url.slice(1) : rawBase + url.slice(1))
           : (useMedia ? mediaBase + dir + norm : base + norm);
-        return pre + abs + q;
+        // Cross-origin <track> elements require crossorigin for the browser
+        // to load them (Firefox: "Security Error … may not load data from").
+        let tag = pre;
+        if (/^<track\b/i.test(pre) && !/\bcrossorigin\s*=/i.test(pre)) {
+          tag = pre.replace(/^<track\b/i, '<track crossorigin="anonymous"');
+        }
+        return tag + abs + q;
       }
     );
 
