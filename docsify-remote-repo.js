@@ -353,19 +353,33 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
   //   • Navigable links → Docsify #/remote/ routes
   //   • Non-navigable   → absolute raw-content URLs
 
-  /** Resolve a navigable href (markdown link or directory) to a Docsify route. */
-  function resolveNavHref(cleaned, fragment, routePrefix, currentRoute) {
+  /** Resolve a navigable href (markdown link or directory) to a Docsify route.
+   *  Relative links are resolved against the REMOTE repo path of the current
+   *  document (ctx.sub), so contentMap-served and /remote/-served content
+   *  produce the same canonical /remote/{host}/{repo}/{path} routes.
+   *  (Previously resolution went through the docsify route prefix, which for
+   *  contentMap content produced `//`-prefixed, basePath-less broken URLs.) */
+  function resolveNavHref(cleaned, fragment, ctx) {
+    const { host, repo, sub } = ctx;
     const slug = cleaned.replace(/(^|\/)README\.md$/i, '$1').replace(/\/$/, '');
     const suffix = fragment ? '?id=' + fragment : '';
+    // Repo-relative directory of the current document.
+    const dir = /\.\w+$/.test(sub)
+      ? sub.replace(/[^/]*$/, '')
+      : (sub ? sub.replace(/\/?$/, '/') : '');
+    let repoPath;
     if (cleaned.charAt(0) === '/') {
-      const abs = slug.replace(/^\/+/, '');
-      return `${routePrefix}${abs ? '/' + abs : ''}${suffix}`;
+      // Root-absolute link → repo root
+      repoPath = slug.replace(/^\/+/, '');
+    } else {
+      try {
+        repoPath = new URL(slug || '.', 'https://repo.root/' + dir).pathname
+          .replace(/^\/+/, '').replace(/\/$/, '');
+      } catch (e) {
+        repoPath = dir + slug;
+      }
     }
-    try {
-      return new URL(slug || '.', 'https://x' + currentRoute + '/').pathname.replace(/\/$/, '') + suffix;
-    } catch (e) {
-      return `${currentRoute}/${slug}${suffix}`;
-    }
+    return `/remote/${host}/${repo}${repoPath ? '/' + repoPath : ''}${suffix}`;
   }
 
   // ═══ FRONTMATTER PARSING ═══════════════════════════════════════════
@@ -393,11 +407,9 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
   }
 
   function rewriteMarkdown(md, ctx, submodules) {
-    const { base, rawBase, mediaBase, routePrefix, sub } = ctx;
+    const { base, rawBase, mediaBase, sub } = ctx;
     // Media extensions that should use mediaBase (LFS-compatible) instead of rawBase
     const MEDIA_EXTS = /\.(?:m3u8|ts|m4a|mp3|wav|aiff|ogg|flac|opus|webm|vtt)$/i;
-    // Current route for relative link resolution
-    const currentRoute = sub ? `${routePrefix}/${sub}` : routePrefix;
     // Repo-relative directory for submodule path checks
     const dir = sub
       ? (/\.\w+$/.test(sub) ? sub.replace(/[^/]*$/, '') : sub.replace(/\/?$/, '/'))
@@ -438,7 +450,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
           const smLink = submodules && cleaned.charAt(0) !== '/' && resolveSubmodule(submodules, dir + cleanNorm);
           absHref = smLink
             ? `/remote/${smLink.host}/${smLink.repoPath}${smLink.remaining ? '/' + smLink.remaining : ''}`
-            : resolveNavHref(cleaned, '', routePrefix, currentRoute);
+            : resolveNavHref(cleaned, '', ctx);
         } else {
           const normLink = linkHref.replace(/^\.?\//, '');
           absHref = linkHref.charAt(0) === '/' ? rawBase + linkHref.slice(1) : base + normLink;
@@ -484,7 +496,7 @@ if (typeof document === 'undefined') { globalThis.document = { getElementById: (
             const suffix = fragment ? '?id=' + fragment : '';
             return `[${text}](${smRoute}${suffix})`;
           }
-          return `[${text}](${resolveNavHref(cleaned, fragment, routePrefix, currentRoute)})`;
+          return `[${text}](${resolveNavHref(cleaned, fragment, ctx)})`;
         }
 
         // Non-navigable file → absolute raw URL
